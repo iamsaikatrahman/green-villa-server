@@ -58,7 +58,7 @@ async function run() {
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  res.send("Running Apartment Villa Server!");
+  res.send("Running Green Villa Server!");
 });
 
 app.listen(port, () => {
