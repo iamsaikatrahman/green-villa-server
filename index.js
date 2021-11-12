@@ -1,9 +1,17 @@
 const express = require("express");
 const cors = require("cors");
+const admin = require("firebase-admin");
 require("dotenv").config();
 const { MongoClient } = require("mongodb");
+const { json } = require("express");
 const app = express();
 const port = process.env.PORT || 5000;
+
+var serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 app.use(express.json());
 app.use(cors());
@@ -13,6 +21,17 @@ const client = new MongoClient(uri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
+
+async function verifyToken(req, res, next) {
+  if (req.headers?.authorization?.startsWith("Bearer ")) {
+    const idToken = req.headers.authorization.split(" ")[1];
+    try {
+      const decodeUser = await admin.auth().verifyIdToken(idToken);
+      req.decodeEmail = decodeUser.email;
+    } catch {}
+  }
+  next();
+}
 
 async function run() {
   try {
@@ -35,6 +54,16 @@ async function run() {
       const reviews = await cursor.toArray();
       res.send(reviews);
     });
+    app.get("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      let isAdmin = false;
+      if (user.role === "admin") {
+        isAdmin = true;
+      }
+      res.json({ admin: isAdmin });
+    });
     // SAVE USER BY EMAIL SIGN IN
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -51,13 +80,24 @@ async function run() {
       res.json(result);
     });
     // MAKE ADMIN API
-    app.put("/users/admin", async (req, res) => {
+    app.put("/users/admin", verifyToken, async (req, res) => {
       const user = req.body;
-      console.log("put", user);
-      const filter = { email: user.email };
-      const updateDoc = { $set: { role: "admin" } };
-      const result = await userCollection.updateOne(filter, updateDoc);
-      res.json(result);
+      const requester = req.decodeEmail;
+      if (requester) {
+        const requesterAccount = await userCollection.findOne({
+          email: requester,
+        });
+        if (requesterAccount.role === "admin") {
+          const filter = { email: user.email };
+          const updateDoc = { $set: { role: "admin" } };
+          const result = await userCollection.updateOne(filter, updateDoc);
+          res.json(result);
+        }
+      } else {
+        res
+          .status(403)
+          .json({ message: "You do not have access to make admin" });
+      }
     });
   } finally {
     // await client.close();
