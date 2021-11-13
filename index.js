@@ -3,7 +3,7 @@ const cors = require("cors");
 const admin = require("firebase-admin");
 require("dotenv").config();
 const { MongoClient } = require("mongodb");
-const { json } = require("express");
+const ObjectId = require("mongodb").ObjectId;
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -41,11 +41,19 @@ async function run() {
     const apartmentsCollection = database.collection("apartments");
     const reviewsCollection = database.collection("reviews");
     const userCollection = database.collection("users");
+    const orderCollection = database.collection("orders");
 
     // GET ALL APARTMENT API
     app.get("/apartments", async (req, res) => {
       const cursor = apartmentsCollection.find({});
       const apartments = await cursor.toArray();
+      res.send(apartments);
+    });
+    //GET SINGLE DATA API
+    app.get("/apartments/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const apartments = await apartmentsCollection.findOne(query);
       res.send(apartments);
     });
     // GET ALL REVIEW API
@@ -54,12 +62,30 @@ async function run() {
       const reviews = await cursor.toArray();
       res.send(reviews);
     });
+    //ADD APARTMENTS API
+    app.post("/apartments", async (req, res) => {
+      const apartments = req.body;
+      const result = await apartmentsCollection.insertOne(apartments);
+      res.json(result);
+    });
+    //ADD REVIEW API
+    app.post("/reviews", async (req, res) => {
+      const reviews = req.body;
+      const result = await reviewsCollection.insertOne(reviews);
+      res.json(result);
+    });
+    //ADD ORDERS API
+    app.post("/orders", async (req, res) => {
+      const order = req.body;
+      const result = await orderCollection.insertOne(order);
+      res.json(result);
+    });
     app.get("/users/:email", async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
       const user = await userCollection.findOne(query);
       let isAdmin = false;
-      if (user.role === "admin") {
+      if (user?.role === "admin") {
         isAdmin = true;
       }
       res.json({ admin: isAdmin });
@@ -83,10 +109,12 @@ async function run() {
     app.put("/users/admin", verifyToken, async (req, res) => {
       const user = req.body;
       const requester = req.decodeEmail;
+      console.log("decode email:", req.decodeEmail);
       if (requester) {
         const requesterAccount = await userCollection.findOne({
           email: requester,
         });
+        console.log("req role:", requesterAccount.role);
         if (requesterAccount.role === "admin") {
           const filter = { email: user.email };
           const updateDoc = { $set: { role: "admin" } };
