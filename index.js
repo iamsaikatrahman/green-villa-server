@@ -80,6 +80,52 @@ async function run() {
       const result = await orderCollection.insertOne(order);
       res.json(result);
     });
+    // GET ALL ORDERS API
+    app.get("/orders", async (req, res) => {
+      const cursor = orderCollection.find({});
+      const orders = await cursor.toArray();
+      res.send(orders);
+    });
+    // GET ORDER FILTER BY USER EMAIL
+    app.get("/myorders/:email", async (req, res) => {
+      const result = await orderCollection
+        .find({ email: req.params.email })
+        .toArray();
+      res.send(result);
+    });
+    //UPDATE STATUS API
+    app.put("/orders/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedStatus = req.body;
+      console.log(updatedStatus);
+      const filter = { _id: ObjectId(id) };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          bookingstatus: updatedStatus.bookingstatus,
+        },
+      };
+      const result = await orderCollection.updateOne(
+        filter,
+        updateDoc,
+        options
+      );
+      res.json(result);
+    });
+    //DELETE ORDER API
+    app.delete("/orders/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const result = await orderCollection.deleteOne(query);
+      res.json(result);
+    });
+    //DELETE PRODUCT API
+    app.delete("/apartments/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const result = await apartmentsCollection.deleteOne(query);
+      res.json(result);
+    });
     app.get("/users/:email", async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
